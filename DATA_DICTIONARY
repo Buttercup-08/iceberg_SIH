@@ -1,0 +1,226 @@
+# Dataset Dictionary
+
+This file documents every external dataset used by the SIH26059 Antarctic Navigation System project.
+
+Each dataset entry contains:
+- **Dataset name**
+- **Provider**
+- **URL**
+- **License**
+- **Spatial resolution**
+- **Temporal resolution**
+- **Coordinate system**
+- **Variables**
+- **Units**
+- **Missing-data representation**
+- **Processing performed**
+- **Date downloaded**
+
+---
+
+## Template Schema
+
+```markdown
+### [Dataset Name]
+- **Dataset name:** Official title of the dataset.
+- **Provider:** Organization / research institute publishing the data.
+- **URL:** Canonical access point or DOI.
+- **License:** Distribution and re-use terms.
+- **Spatial resolution:** Spatial grid spacing or scale.
+- **Temporal resolution:** Sampling frequency or update cadence.
+- **Coordinate system:** Native Coordinate Reference System (CRS) and EPSG code.
+- **Variables:** Key parameters extracted from the files.
+- **Units:** Measurement units for each variable.
+- **Missing-data representation:** Fill values, sentinel numbers, or NaN flags.
+- **Processing performed:** Downstream operations applied by our pipeline.
+- **Date downloaded:** Timestamp of physical download (or planned status).
+```
+
+---
+
+## 1. Sea-Ice Concentration
+
+### NOAA/NSIDC Climate Data Record of Passive Microwave Sea Ice Concentration (CDR v4)
+- **Dataset name:** NOAA/NSIDC Climate Data Record of Passive Microwave Sea Ice Concentration, Version 4
+- **Provider:** National Snow and Ice Data Center (NSIDC) / NOAA
+- **URL:** https://nsidc.org/data/g02202 (DOI: [10.7265/efmz-2t65](https://doi.org/10.7265/efmz-2t65))
+- **License:** Open Access (Creative Commons Zero / U.S. Government Public Domain)
+- **Spatial resolution:** 25 km $\times$ 25 km grid cell
+- **Temporal resolution:** Daily (1978–present)
+- **Coordinate system:** NSIDC South Polar Stereographic (EPSG:3412, datum WGS84, standard parallel 70°S)
+- **Variables:**
+  - `cdr_sea_ice_conc`: NOAA/NSIDC Climate Data Record sea-ice concentration
+  - `nsidc_bt_sea_ice_conc`: Sea-ice concentration from the NASA Team algorithm
+  - `nsidc_nt_sea_ice_conc`: Sea-ice concentration from the Bootstrap algorithm
+  - `spatial_qa_flag`: Quality assessment flags
+- **Units:** Fraction [$0.0$ to $1.0$] (or integer percentage $0$ to $100\%$)
+- **Missing-data representation:**
+  - `2.51`: Pole hole flag
+  - `2.53`: Coastline / Land boundary
+  - `2.54`: Land interior
+  - `2.55`: Missing / missing-data sentinel (or NetCDF `_FillValue = -9999`)
+- **Processing performed:**
+  1. Extraction of the Southern Hemisphere grid file.
+  2. Bounding-box spatial subsetting for the targeted Antarctic navigation quadrant.
+  3. Reprojection and resampling from EPSG:3412 to project EPSG:3031.
+  4. Conversion of non-ice land and pole-hole sentinels to explicit masks (`NaN` or boolean mask).
+  5. Value normalization to float range $[0.0, 1.0]$.
+- **Date downloaded:** *Not yet downloaded from live source. Offline validation sample available at `data/sample/sea_ice_sample.nc` (synthesized via `scripts/generate_sample_ice.py`).*
+
+---
+
+## 2. Sea-Ice Motion
+
+### NSIDC Polar Pathfinder Daily Sea Ice Motion Vectors
+- **Dataset name:** Polar Pathfinder Daily 25 km EASE-Grid Sea Ice Motion Vectors, Version 4
+- **Provider:** National Snow and Ice Data Center (NSIDC) / NASA Distributed Active Archive Center (DAAC)
+- **URL:** https://nsidc.org/data/nsidc-0116 (DOI: [10.5067/INAWUWO7QHCT](https://doi.org/10.5067/INAWUWO7QHCT))
+- **License:** Open Access (NASA Earth Science Open Data Policy)
+- **Spatial resolution:** 25 km $\times$ 25 km
+- **Temporal resolution:** Daily
+- **Coordinate system:** NSIDC South Polar Stereographic (EPSG:3412) / EASE-Grid South
+- **Variables:**
+  - `u`: Eastward component of sea-ice motion velocity
+  - `v`: Northward component of sea-ice motion velocity
+  - `flags`: Quality and source sensor indicator flags
+- **Units:** Centimeters per second ($\text{cm/s}$), converted to meters per second ($\text{m/s}$)
+- **Missing-data representation:** `-9999.0` or standard NetCDF `_FillValue`
+- **Processing performed:**
+  1. Unit conversion from $\text{cm/s}$ to $\text{m/s}$ ($\times 10^{-2}$).
+  2. Vector component rotation to align with EPSG:3031 projected grid axes ($U_{grid}, V_{grid}$).
+  3. Bilinear interpolation onto the active navigation cost grid nodes.
+- **Date downloaded:** *Not yet downloaded (Planned / Schema Defined)*
+
+---
+
+## 3. Iceberg Tracking & Observations
+
+### BYU / US National Ice Center (USNIC) Antarctic Iceberg Tracking Database
+- **Dataset name:** BYU Antarctic Iceberg Tracking Database (merged with USNIC Operational Iceberg Records)
+- **Provider:** Brigham Young University (BYU) Center for Remote Sensing & U.S. National Ice Center (USNIC)
+- **URL:** https://www.scp.byu.edu/data/iceberg/ & https://usicecenter.gov/Products/AntarcIcebergs
+- **License:** Public Domain (U.S. Government Open Data)
+- **Spatial resolution:** Point observation coordinates with measured bounding geometry (Length $\times$ Width)
+- **Temporal resolution:** Daily to weekly tracking updates
+- **Coordinate system:** Geographic coordinates WGS84 (EPSG:4326)
+- **Variables:**
+  - `iceberg_id`: Alphanumeric iceberg identifier (e.g., A-68A, B-15A)
+  - `date` / `timestamp`: Date and time of observation (UTC)
+  - `latitude`: Geographic latitude of iceberg centroid (decimal degrees)
+  - `longitude`: Geographic longitude of iceberg centroid (decimal degrees)
+  - `length`: Long axis dimension
+  - `width`: Short axis dimension
+  - `source`: Sensor or analyst source (e.g., Sentinel-1 SAR, MODIS, Scatterometer)
+- **Units:**
+  - Latitude / Longitude: Decimal degrees [$^\circ\text{S}, ^\circ\text{W/E}$]
+  - Dimensions: Kilometers ($\text{km}$) or Nautical Miles ($\text{NM}$)
+- **Missing-data representation:** Blank text fields, `None`, or sentinel values `-999`
+- **Processing performed:**
+  1. Text/CSV parsing and chronological sorting by iceberg identifier.
+  2. Standardization of geometric dimensions into metric meters ($L, W$).
+  3. Coordinate transformation from EPSG:4326 to EPSG:3031.
+  4. Generation of spatial bounding polygons and dynamic Gaussian avoidance risk buffers.
+- **Date downloaded:** *Not yet downloaded (Planned / Schema Defined)*
+
+---
+
+## 4. Atmospheric / Wind Reanalysis & Forecasts
+
+### ECMWF ERA5 Atmospheric Reanalysis
+- **Dataset name:** ERA5 Reanalysis Single Levels (and ECMWF IFS HRES Operational Forecasts)
+- **Provider:** European Centre for Medium-Range Weather Forecasts (ECMWF) / Copernicus Climate Change Service (C3S)
+- **URL:** https://cds.climate.copernicus.eu/cdsapp#!/dataset/reanalysis-era5-single-levels
+- **License:** Copernicus Open Access Licence (Creative Commons Attribution 4.0 International - CC BY 4.0)
+- **Spatial resolution:** 0.25° $\times$ 0.25° (approx. 27–31 km)
+- **Temporal resolution:** Hourly
+- **Coordinate system:** WGS84 Geographic Regular Lat/Lon grid (EPSG:4326)
+- **Variables:**
+  - `u10`: 10-meter eastward neutral wind velocity component
+  - `v10`: 10-meter northward neutral wind velocity component
+  - `msl`: Mean sea level atmospheric pressure
+  - `t2m`: 2-meter air temperature
+- **Units:**
+  - Wind components (`u10`, `v10`): Meters per second ($\text{m/s}$)
+  - Pressure (`msl`): Pascals ($\text{Pa}$)
+  - Temperature (`t2m`): Kelvin ($\text{K}$)
+- **Missing-data representation:** NetCDF `_FillValue = -32767` or `NaN`
+- **Processing performed:**
+  1. Southern latitude extraction ($-50^\circ\text{ S}$ to $-90^\circ\text{ S}$).
+  2. Re-projection and grid-relative vector decomposition onto EPSG:3031.
+  3. Computation of wind magnitude $|\mathbf{u}_{10}| = \sqrt{u_{10}^2 + v_{10}^2}$ and direction for aerodynamic drag calculations in iceberg drift models.
+- **Date downloaded:** *Not yet downloaded (Planned / Schema Defined)*
+
+---
+
+## 5. Ocean Currents & Hydrodynamics
+
+### Copernicus Marine Service (CMEMS) Global Ocean Physics Analysis and Forecast
+- **Dataset name:** Global Ocean Physics Analysis and Forecast (`GLOBAL_ANALYSISFORECAST_PHY_001_024`)
+- **Provider:** Copernicus Marine Service / Mercator Ocean International
+- **URL:** https://marine.copernicus.eu/
+- **License:** Open and free access under the Copernicus Marine Service Licence
+- **Spatial resolution:** 1/12° horizontal resolution (approx. 8 km) across 50 vertical depth levels
+- **Temporal resolution:** Daily means and hourly surface field updates
+- **Coordinate system:** WGS84 Geographic Regular Lat/Lon (EPSG:4326)
+- **Variables:**
+  - `uo`: Eastward sea water velocity component
+  - `vo`: Northward sea water velocity component
+  - `zos`: Sea surface height above geoid
+  - `thetao`: Sea water potential temperature
+  - `so`: Sea water salinity
+- **Units:**
+  - Velocity components (`uo`, `vo`): Meters per second ($\text{m/s}$)
+  - Sea surface height (`zos`): Meters ($\text{m}$)
+  - Temperature (`thetao`): Degrees Celsius ($^\circ\text{C}$)
+  - Salinity (`so`): Practical Salinity Units ($\text{PSU}$)
+- **Missing-data representation:** NetCDF `_FillValue = 1.0e+20` or `NaN` (continental landmasses masked)
+- **Processing performed:**
+  1. Depth slicing for surface layer ($0\text{ m}$) and depth-integrated keel draft layers ($0 - 150\text{ m}$ for deep-keeled tabular icebergs).
+  2. Reprojection of ocean current velocity vectors into EPSG:3031.
+  3. Integration into hydrodynamic drag modules and vessel transit speed adjustment models.
+- **Date downloaded:** *Not yet downloaded (Planned / Schema Defined)*
+
+---
+
+## 6. Bathymetry
+
+### GEBCO Gridded Bathymetric Data (GEBCO_2023 / GEBCO_2024)
+- **Dataset name:** General Bathymetric Chart of the Oceans (GEBCO) 30-arc-second / 15-arc-second Grid
+- **Provider:** GEBCO / International Hydrographic Organization (IHO) / UNESCO Intergovernmental Oceanographic Commission (IOC)
+- **URL:** https://www.gebco.net/data_and_products/gridded_bathymetry_data/
+- **License:** GEBCO Open Data Licence (Public use with attribution)
+- **Spatial resolution:** 15 arc-second grid interval (approx. 450 m at the equator, converging poleward)
+- **Temporal resolution:** Static / Periodic annual compilation releases
+- **Coordinate system:** WGS84 Geographic coordinates (EPSG:4326)
+- **Variables:**
+  - `elevation`: Elevation / depth relative to Mean Sea Level (MSL)
+- **Units:** Meters ($\text{m}$), where negative values denote submarine depth below sea level
+- **Missing-data representation:** NetCDF `_FillValue = -32767` or `NaN`
+- **Processing performed:**
+  1. Spatial clipping below $-50^\circ\text{ S}$ latitude.
+  2. Aggregation / downsampling to match target navigation grid cells ($5\text{ km} - 25\text{ km}$).
+  3. Derivation of under-keel clearance masks: cells with $|\text{depth}| < \text{vessel\_draft} + \text{safety\_margin}$ are marked as non-navigable ($\text{Cost} = \infty$).
+- **Date downloaded:** *Not yet downloaded (Planned / Schema Defined)*
+
+---
+
+## 7. Coastlines & Continental Ice Boundaries
+
+### SCAR Antarctic Digital Database (ADD) Coastlines & Ice Shelves
+- **Dataset name:** SCAR Antarctic Digital Database (ADD) High-Resolution Topographic & Coastline Data
+- **Provider:** Scientific Committee on Antarctic Research (SCAR) / British Antarctic Survey (BAS)
+- **URL:** https://www.add.scar.org/
+- **License:** Creative Commons Attribution 4.0 International (CC BY 4.0)
+- **Spatial resolution:** Vector data at scales between 1:250,000 and 1:1,000,000
+- **Temporal resolution:** Versioned periodic releases reflecting major calving and grounding-line updates
+- **Coordinate system:** Antarctic Polar Stereographic (EPSG:3031) and WGS84 (EPSG:4326)
+- **Variables:**
+  - `surface`: Classification of terrain (`ice_shelf`, `grounded_ice`, `rock_exposure`, `open_water`)
+  - `feature`: Geometric line/polygon type (`coastline`, `grounding_line`, `ice_front`)
+- **Units:** Dimensionless categorical / vector geometries
+- **Missing-data representation:** Empty feature attributes or null geometries
+- **Processing performed:**
+  1. Vector ingestion and geometry validation (closing unclosed rings, fixing self-intersections).
+  2. Rasterization (burn-in) onto the discrete EPSG:3031 computation grid.
+  3. Establishment of absolute hard-obstacle barriers ($\text{Cost} = \infty$) across all land and grounded ice zones.
+- **Date downloaded:** *Not yet downloaded (Planned / Schema Defined)*
